@@ -1,10 +1,12 @@
 import { HandPalm, Play } from "phosphor-react";
-import { PlayButtonContainer, StopCountdownButtonContainer, CountdownContainer, FormContainer, HomeContainer, MinutesAmountInput, Separator, TaskInput } from "./styles";
+import { PlayButtonContainer, StopCountdownButtonContainer, HomeContaineror } from "./styles";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as zod from 'zod';
 import { useState, useEffect } from "react";
 import { differenceInSeconds } from "date-fns";
+import { NewCycleForm } from "./NewCycleForm";
+import { Countdown } from "./Countdown";
 
 
 const newCycleFormValidationSchema = zod.object({
@@ -18,6 +20,7 @@ interface Cycle {
   minutesAmount: number;
   startDate: Date;
   interruptedDate?: Date;
+  finishedDate?: Date;
 }
 
 type NewCycleFormData = zod.infer<typeof newCycleFormValidationSchema>;
@@ -37,18 +40,6 @@ export function Home() {
 
   const activeCycle = cycles.find((cycle) => cycle.id === activeCycleId);
 
-  useEffect(() => {
-    let interval: number;
-    if (activeCycle) {
-      interval = setInterval(() => {
-        setAmountSecondsPassed(differenceInSeconds(new Date(), activeCycle.startDate))
-      }, 1000)
-    }
-    return () => {
-      clearInterval(interval)
-    }
-  }, [activeCycle]);
-
   function handleCreateNewCycle(data: NewCycleFormData) {
     const id = String(new Date().getTime());
     const newCycle: Cycle = {
@@ -64,7 +55,7 @@ export function Home() {
   }
 
   function handleInterruptCycle() {
-    setCycles(cycles.map((cycle) => {
+    setCycles(state => state.map((cycle) => {
       if (cycle.id === activeCycleId) {
         return {
           ...cycle,
@@ -88,6 +79,29 @@ export function Home() {
   const seconds = String(secondsAmount).padStart(2, '0');
 
   useEffect(() => {
+    let interval: number;
+    if (activeCycle) {
+      interval = setInterval(() => {
+        const differenceFromStartInSeconds = differenceInSeconds(new Date(), activeCycle.startDate)
+
+        if(differenceFromStartInSeconds >= totalSeconds) {
+          setCycles(state => state.map((cycle) => {
+            return {...cycle, finishedDate: new Date()}
+          }
+          ))
+          setAmountSecondsPassed(totalSeconds)
+          clearInterval(interval)
+        }else {
+          setAmountSecondsPassed(differenceFromStartInSeconds)
+        }
+      }, 1000)
+    }
+    return () => {
+      clearInterval(interval)
+    }
+  }, [activeCycle, totalSeconds]);
+
+  useEffect(() => {
     if (activeCycle) {
       document.title = `${minutes}:${seconds} | Pomodoro`
     }
@@ -100,45 +114,8 @@ export function Home() {
   return (
     <HomeContainer>
       <form onSubmit={handleSubmit(handleCreateNewCycle)} action="">
-        <FormContainer>
-
-          <label htmlFor="task">Vou trabalhar em</label>
-          <TaskInput
-            list="taskSugestions"
-            id="task"
-            disabled={!!activeCycle}
-            placeholder="Dê um nome para o seu projeto"
-            {...register("task")}
-          />
-          <datalist id="tasksSugestions">
-            <option value="Projeto 1" />
-            <option value="Projeto 2" />
-            <option value="Animação 3D" />
-          </datalist>
-
-          <label htmlFor="minutesAmount">Durante</label>
-          <MinutesAmountInput
-            type="number"
-            id="minutesAmount"
-            placeholder="00"
-            step={5}
-            min={5}
-            max={60}
-            disabled={!!activeCycle}
-            {...register("minutesAmount", { valueAsNumber: true })}
-          />
-
-          <span>minutos.</span>
-        </FormContainer>
-
-        <CountdownContainer>
-          <span>{minutes[0]}</span>
-          <span>{minutes[1]}</span>
-          <Separator>:</Separator>
-          <span>{seconds[0]}</span>
-          <span>{seconds[1]}</span>
-        </CountdownContainer>
-
+        <NewCycleForm />
+        <Countdown />
         {activeCycle ? (
           <StopCountdownButtonContainer onClick={handleInterruptCycle} type="button">
             <HandPalm size={24} />
